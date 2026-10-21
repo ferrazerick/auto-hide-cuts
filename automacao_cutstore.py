@@ -1,20 +1,17 @@
 import requests
 import json
+import time
 
-# Nome exato da marca
-MARCA_DESEJADA = "Apple"
-# Nome exato do modelo
-MODELO_DESEJADO = "18 Pro Max"
-# Número(s) do PLT Code (ex: 46510 ou [46510, 46938])
-PLT_CODES = 46510
 # Configurações de Acesso
-SESSION_ID = ""
 BASE_URL = "http://agent.cutstore.cn"
-
+SESSION_ID = ""
 
 # ==========================================
 # 1. DEFINIÇÕES NO TOPO
 # ==========================================
+MARCA_DESEJADA = "Apple"         # Nome exato da marca
+MODELO_DESEJADO = "18 Pro Max"   # Nome exato do modelo
+PLT_CODES = [46510, 46938]       # Número(s) do PLT Code (pode ser um único ou lista)
 
 HEADERS = {
     "Origin": "http://agent.cutstore.cn",
@@ -119,11 +116,12 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
     mapa_produtos = {p["pltCode"]: p for p in produtos if "pltCode" in p}
 
     # -------------------------------------------------------------
-    # PASSO 4: Realizar o insert dos PLT Codes
+    # PASSO 4: Realizar o insert dos PLT Codes com Timer dinâmico na mesma linha
     # -------------------------------------------------------------
     url_insert = f"{BASE_URL}/v3/api/category/custom/product/insert"
+    total_itens = len(plt_codes)
 
-    for plt_code in plt_codes:
+    for index, plt_code in enumerate(plt_codes):
         if plt_code not in mapa_produtos:
             print(f"[-] PLT Code '{plt_code}' não encontrado no find_list para este modelo.")
             continue
@@ -140,7 +138,7 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
             "categoryOneId": category_one_id,
             "categoryTwoId": category_two_id,
             "categoryThreeId": category_three_id,
-            "categoryProductId": prod["id"],  # ID único do produto/pltCode obtido da API
+            "categoryProductId": prod["id"],  
             "enable": 0,
             "sort": 0,
             "nameCn": prod.get("nameCn", ""),
@@ -158,6 +156,15 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
                 print(f"[ERRO] Falha ao cadastrar PLT Code '{plt_code}': {err_msg}")
         except Exception as e:
             print(f"[ERRO] Exceção ao enviar PLT Code '{plt_code}': {e}")
+
+        # Se não for o último item, exibe a contagem regressiva na linha de baixo substituindo o número
+        if index < total_itens - 1:
+            print("Tempo para o próximo insert:")
+            for i in range(7, 0, -1):
+                print(f"{i}...", end="\r", flush=True)
+                time.sleep(1)
+            print(" " * 20, end="\r")  # Limpa a linha ao finalizar a contagem
+            print() # Pula para a próxima linha para o próximo insert
 
 if __name__ == "__main__":
     CAT_ONE = 6991998
