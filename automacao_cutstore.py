@@ -7,6 +7,10 @@ AMARELO = "\033[33m"
 VERDE = "\033[32m"
 VERMELHO = "\033[31m"
 AZUL = "\033[34m"
+LARANJA = "\033[38;5#208m" # Código aproximado ou ANSI truecolor para laranja
+LARANJA_ANSI = "\033[38;5:208m" if hasattr(time, 'time') else "\033[33m" # fallback seguro
+# Usando ANSI padrão para laranja/magenta se preferir, ou 38;5;208 (suportado na maioria dos terminais modernos)
+LARANJA = "\033[38;5;208m"
 RESET = "\033[0m"
 
 # Configurações de Acesso
@@ -18,7 +22,7 @@ SESSION_ID = ""
 # ==========================================
 MARCA_DESEJADA = "Apple"
 MODELO_DESEJADO = "18 Pro Max"
-PLT_CODES = [46510, 46938]
+PLT_CODES = [46510, 46938, 49931]
 
 HEADERS = {
     "Origin": BASE_URL,
@@ -73,7 +77,7 @@ def obter_id_modelo(modelos, modelo_nome):
 def aguardar_proximo_insert():
     """Executa o timer regressivo entre os inserts."""
     print("Tempo para o próximo insert:")
-    for i in range(7, 0, -1):
+    for i in range(6, 0, -1):
         print(f"{AZUL}{i}...{RESET}", end="\r", flush=True)
         time.sleep(1)
     print(" " * 20, end="\r")
@@ -81,6 +85,10 @@ def aguardar_proximo_insert():
 
 def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent_list, agent_id, second_agent_id):
     plt_codes = normalizar_plt_codes(numeros)
+    
+    # Listas para o log final
+    sucessos = []
+    erros = []
         
     # 1. Buscar Marca
     marcas = requisicao_api("/v3/api/sysCategoryTwo/find_list", {"categoryOneId": category_one_id}, "Buscando lista de marcas na API...")
@@ -115,6 +123,7 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
     for index, plt_code in enumerate(plt_codes):
         if plt_code not in mapa_produtos:
             print(f"{VERMELHO}PLT Code '{plt_code}' não encontrado no find_list para este modelo.{RESET}")
+            erros.append(plt_code)
             continue
         
         prod = mapa_produtos[plt_code]
@@ -140,14 +149,37 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
             res = requests.post(url_insert, headers=HEADERS, json=payload_insert).json()
             if res.get("code") == 200:
                 print(f"{VERDE}PLT Code '{plt_code}' (ID: {prod['id']}) cadastrado com sucesso para o modelo {modelo_nome}!{RESET}")
+                sucessos.append(plt_code)
             else:
                 err_msg = res.get("data", {}).get("errMsg") or res.get("message") or str(res)
                 print(f"{VERMELHO}Falha ao cadastrar PLT Code '{plt_code}': {err_msg}{RESET}")
+                erros.append(plt_code)
         except Exception as e:
             print(f"{VERMELHO}Exceção ao enviar PLT Code '{plt_code}': {e}{RESET}")
+            erros.append(plt_code)
 
         if index < total_itens - 1:
             aguardar_proximo_insert()
+
+    # Exibição do Log Final
+    print("\n" + "="*40)
+    print("LOG FINAL DE PROCESSAMENTO")
+    print("="*40)
+    
+    print(f"{AZUL}PLT Codes que deram certo:{RESET}")
+    if sucessos:
+        for codigo in sucessos:
+            print(f"{AZUL}- {codigo}{RESET}")
+    else:
+        print(f"{AZUL}Nenhum código cadastrado com sucesso.{RESET}")
+
+    print(f"\n{LARANJA}PLT Codes que deram errado:{RESET}")
+    if erros:
+        for codigo in erros:
+            print(f"{LARANJA}- {codigo}{RESET}")
+    else:
+        print(f"{LARANJA}Nenhum erro registrado.{RESET}")
+    print("="*40)
 
 if __name__ == "__main__":
     CAT_ONE = 6991998
