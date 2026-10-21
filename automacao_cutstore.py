@@ -1,16 +1,20 @@
 import requests
 import json
 
+# Nome exato da marca
+MARCA_DESEJADA = "Apple"
+# Nome exato do modelo
+MODELO_DESEJADO = "18 Pro Max"
+# Número(s) do PLT Code (ex: 46510 ou [46510, 46938])
+PLT_CODES = 46510
 # Configurações de Acesso
-BASE_URL = "http://agent.cutstore.cn"
 SESSION_ID = ""
+BASE_URL = "http://agent.cutstore.cn"
+
 
 # ==========================================
 # 1. DEFINIÇÕES NO TOPO
 # ==========================================
-MARCA_DESEJADA = "Apple"         # Nome exato da marca
-MODELO_DESEJADO = "18 Pro Max"   # Nome exato do modelo
-PLT_CODES = 46510                # Número(s) do PLT Code (ex: 46510 ou [46510, 46938])
 
 HEADERS = {
     "Origin": "http://agent.cutstore.cn",
