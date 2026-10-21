@@ -6,11 +6,11 @@ BASE_URL = "http://agent.cutstore.cn"
 SESSION_ID = ""
 
 # ==========================================
-# DEFINA OS PLT CODES AQUI (Apenas os números)
-# - Para testar apenas um: PLT_CODES = 46938 (ou "46938")
-# - Para testar vários:    PLT_CODES = [46938, 47963, 48386]
+# 1. DEFINIÇÕES NO TOPO
 # ==========================================
-PLT_CODES = 46510
+MARCA_DESEJADA = "Apple"         # Nome exato da marca
+MODELO_DESEJADO = "18 Pro Max"   # Nome exato do modelo
+PLT_CODES = 46510                # Número(s) do PLT Code (ex: 46510 ou [46510, 46938])
 
 HEADERS = {
     "Origin": "http://agent.cutstore.cn",
@@ -19,8 +19,8 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def processar_plt_codes(numeros, category_three_id, agent_list, agent_id, second_agent_id, category_one_id, category_two_id):
-    # Converte para lista caso seja passado apenas um valor isolado
+def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent_list, agent_id, second_agent_id):
+    # Converte PLT codes para lista se for passado apenas um
     if isinstance(numeros, (str, int)):
         numeros = [numeros]
         
@@ -33,35 +33,95 @@ def processar_plt_codes(numeros, category_three_id, agent_list, agent_id, second
         else:
             plt_codes.append(f"L{num_str}")
         
-    # 1. Buscar a lista de produtos (find_list)
-    url_find = f"{BASE_URL}/v3/api/sysCategoryProduct/find_list"
-    payload_find = {
-        "categoryThreeId": category_three_id
-    }
+    # -------------------------------------------------------------
+    # PASSO 1: Buscar a Marca (sysCategoryTwo)
+    # -------------------------------------------------------------
+    url_marcas = f"{BASE_URL}/v3/api/sysCategoryTwo/find_list"
+    payload_marcas = {"categoryOneId": category_one_id}
     
-    print("Buscando lista de produtos na API...")
+    print("Buscando lista de marcas na API...")
     try:
-        response = requests.post(url_find, headers=HEADERS, json=payload_find)
+        response = requests.post(url_marcas, headers=HEADERS, json=payload_marcas)
         data = response.json()
-        
         if data.get("code") != 200:
-            print(f"Erro ao buscar lista de produtos: {data}")
+            print(f"[ERRO] Falha ao buscar marcas: {data}")
             return
-        
-        produtos = data.get("data", {}).get("bussData", [])
-        mapa_produtos = {p["pltCode"]: p for p in produtos}
-        
+        marcas = data.get("data", {}).get("bussData", [])
     except Exception as e:
-        print(f"Erro de conexão ao buscar produtos: {e}")
+        print(f"[ERRO] Exceção ao buscar marcas: {e}")
         return
 
-    # URL de inserção
+    category_two_id = None
+    for m in marcas:
+        if m.get("nameEn") == marca_nome:
+            category_two_id = m.get("id")
+            break
+            
+    if not category_two_id:
+        print(f"[ERRO] Marca '{marca_nome}' não foi encontrada exatamente igual. Execução encerrada.")
+        return
+        
+    print(f"[SUCESSO] Marca '{marca_nome}' encontrada com ID (categoryTwoId): {category_two_id}")
+
+    # -------------------------------------------------------------
+    # PASSO 2: Buscar o Modelo (sysCategoryThree) usando o ID da marca
+    # -------------------------------------------------------------
+    url_modelos = f"{BASE_URL}/v3/api/sysCategoryThree/find_list"
+    payload_modelos = {"categoryTwoId": category_two_id}
+    
+    print("Buscando lista de modelos na API...")
+    try:
+        response = requests.post(url_modelos, headers=HEADERS, json=payload_modelos)
+        data = response.json()
+        if data.get("code") != 200:
+            print(f"[ERRO] Falha ao buscar modelos: {data}")
+            return
+        modelos = data.get("data", {}).get("bussData", [])
+    except Exception as e:
+        print(f"[ERRO] Exceção ao buscar modelos: {e}")
+        return
+
+    category_three_id = None
+    for mod in modelos:
+        if mod.get("nameEn") == modelo_nome or mod.get("nameCn") == modelo_nome:
+            category_three_id = mod.get("id")
+            break
+
+    if not category_three_id:
+        print(f"[ERRO] Modelo '{modelo_nome}' não foi encontrado exatamente igual na categoria. Execução encerrada.")
+        return
+
+    print(f"[SUCESSO] Modelo '{modelo_nome}' encontrado com ID (categoryThreeId): {category_three_id}")
+
+    # -------------------------------------------------------------
+    # PASSO 3: Buscar a lista de produtos finais (sysCategoryProduct) para obter os IDs dos PLT Codes
+    # -------------------------------------------------------------
+    url_produtos = f"{BASE_URL}/v3/api/sysCategoryProduct/find_list"
+    payload_produtos = {"categoryThreeId": category_three_id}
+    
+    print("Buscando produtos e PLT codes do modelo...")
+    try:
+        response = requests.post(url_produtos, headers=HEADERS, json=payload_produtos)
+        data = response.json()
+        if data.get("code") != 200:
+            print(f"[ERRO] Falha ao buscar produtos do modelo: {data}")
+            return
+        produtos = data.get("data", {}).get("bussData", [])
+    except Exception as e:
+        print(f"[ERRO] Exceção ao buscar produtos: {e}")
+        return
+
+    # Mapear produtos por pltCode para busca rápida
+    mapa_produtos = {p["pltCode"]: p for p in produtos if "pltCode" in p}
+
+    # -------------------------------------------------------------
+    # PASSO 4: Realizar o insert dos PLT Codes
+    # -------------------------------------------------------------
     url_insert = f"{BASE_URL}/v3/api/category/custom/product/insert"
 
-    # 2. Processar os códigos formatados
     for plt_code in plt_codes:
         if plt_code not in mapa_produtos:
-            print(f"[-] PLT Code '{plt_code}' não encontrado no find_list para esta categoria.")
+            print(f"[-] PLT Code '{plt_code}' não encontrado no find_list para este modelo.")
             continue
         
         prod = mapa_produtos[plt_code]
@@ -76,7 +136,7 @@ def processar_plt_codes(numeros, category_three_id, agent_list, agent_id, second
             "categoryOneId": category_one_id,
             "categoryTwoId": category_two_id,
             "categoryThreeId": category_three_id,
-            "categoryProductId": prod["id"],
+            "categoryProductId": prod["id"],  # ID único do produto/pltCode obtido da API
             "enable": 0,
             "sort": 0,
             "nameCn": prod.get("nameCn", ""),
@@ -88,7 +148,7 @@ def processar_plt_codes(numeros, category_three_id, agent_list, agent_id, second
             res_data = res_insert.json()
             
             if res_data.get("code") == 200:
-                print(f"[SUCESSO] PLT Code '{plt_code}' (ID: {prod['id']}) cadastrado com sucesso!")
+                print(f"[SUCESSO] PLT Code '{plt_code}' (ID: {prod['id']}) cadastrado com sucesso para o modelo {modelo_nome}!")
             else:
                 err_msg = res_data.get("data", {}).get("errMsg") or res_data.get("message") or str(res_data)
                 print(f"[ERRO] Falha ao cadastrar PLT Code '{plt_code}': {err_msg}")
@@ -97,19 +157,16 @@ def processar_plt_codes(numeros, category_three_id, agent_list, agent_id, second
 
 if __name__ == "__main__":
     CAT_ONE = 6991998
-    CAT_TWO = 6249260
-    CAT_THREE = 33100112323
     AGENT_LIST = [903, 9549]
     AGENT_ID = 903
     SEC_AGENT_ID = 9549
     
-    # Chama a função passando a variável do topo
-    processar_plt_codes(
+    processar_cadastros(
+        marca_nome=MARCA_DESEJADA,
+        modelo_nome=MODELO_DESEJADO,
         numeros=PLT_CODES,
-        category_three_id=CAT_THREE,
+        category_one_id=CAT_ONE,
         agent_list=AGENT_LIST,
         agent_id=AGENT_ID,
-        second_agent_id=SEC_AGENT_ID,
-        category_one_id=CAT_ONE,
-        category_two_id=CAT_TWO
+        second_agent_id=SEC_AGENT_ID
     )
