@@ -2,27 +2,20 @@ import requests
 import json
 import time
 
+# Configurações
+BASE_URL = "http://agent.cutstore.cn"
+SESSION_ID = ""
+MARCA_DESEJADA = "Apple"
+MODELO_DESEJADO = "18 Pro Max"
+PLT_CODES = [46510, 46938, 49931]
+
 # Códigos de cores ANSI para o terminal
 AMARELO = "\033[33m"
 VERDE = "\033[32m"
 VERMELHO = "\033[31m"
 AZUL = "\033[34m"
-LARANJA = "\033[38;5#208m" # Código aproximado ou ANSI truecolor para laranja
-LARANJA_ANSI = "\033[38;5:208m" if hasattr(time, 'time') else "\033[33m" # fallback seguro
-# Usando ANSI padrão para laranja/magenta se preferir, ou 38;5;208 (suportado na maioria dos terminais modernos)
 LARANJA = "\033[38;5;208m"
 RESET = "\033[0m"
-
-# Configurações de Acesso
-BASE_URL = "http://agent.cutstore.cn"
-SESSION_ID = ""
-
-# ==========================================
-# DEFINIÇÕES NO TOPO
-# ==========================================
-MARCA_DESEJADA = "Apple"
-MODELO_DESEJADO = "18 Pro Max"
-PLT_CODES = [46510, 46938, 49931]
 
 HEADERS = {
     "Origin": BASE_URL,
@@ -88,7 +81,7 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
     
     # Listas para o log final
     sucessos = []
-    erros = []
+    erros = [] # Armazenará tuplas: (plt_code, mensagem_de_erro)
         
     # 1. Buscar Marca
     marcas = requisicao_api("/v3/api/sysCategoryTwo/find_list", {"categoryOneId": category_one_id}, "Buscando lista de marcas na API...")
@@ -122,8 +115,9 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
 
     for index, plt_code in enumerate(plt_codes):
         if plt_code not in mapa_produtos:
-            print(f"{VERMELHO}PLT Code '{plt_code}' não encontrado no find_list para este modelo.{RESET}")
-            erros.append(plt_code)
+            err_msg = "PLT Code não encontrado no find_list para este modelo"
+            print(f"{VERMELHO}{plt_code} - {err_msg}{RESET}")
+            erros.append((plt_code, err_msg))
             continue
         
         prod = mapa_produtos[plt_code]
@@ -153,18 +147,19 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
             else:
                 err_msg = res.get("data", {}).get("errMsg") or res.get("message") or str(res)
                 print(f"{VERMELHO}Falha ao cadastrar PLT Code '{plt_code}': {err_msg}{RESET}")
-                erros.append(plt_code)
+                erros.append((plt_code, err_msg))
         except Exception as e:
-            print(f"{VERMELHO}Exceção ao enviar PLT Code '{plt_code}': {e}{RESET}")
-            erros.append(plt_code)
+            err_msg = str(e)
+            print(f"{VERMELHO}Exceção ao enviar PLT Code '{plt_code}': {err_msg}{RESET}")
+            erros.append((plt_code, err_msg))
 
         if index < total_itens - 1:
             aguardar_proximo_insert()
 
     # Exibição do Log Final
-    print("\n" + "="*40)
+    print("\n" + "="*50)
     print("LOG FINAL DE PROCESSAMENTO")
-    print("="*40)
+    print("="*50)
     
     print(f"{AZUL}PLT Codes que deram certo:{RESET}")
     if sucessos:
@@ -175,11 +170,11 @@ def processar_cadastros(marca_nome, modelo_nome, numeros, category_one_id, agent
 
     print(f"\n{LARANJA}PLT Codes que deram errado:{RESET}")
     if erros:
-        for codigo in erros:
-            print(f"{LARANJA}- {codigo}{RESET}")
+        for codigo, mensagem in erros:
+            print(f"{LARANJA}- {codigo} - {mensagem}{RESET}")
     else:
         print(f"{LARANJA}Nenhum erro registrado.{RESET}")
-    print("="*40)
+    print("="*50)
 
 if __name__ == "__main__":
     CAT_ONE = 6991998
