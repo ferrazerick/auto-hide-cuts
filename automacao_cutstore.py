@@ -69,7 +69,7 @@ def obter_id_modelo(modelos, modelo_nome):
 def aguardar_proximo_insert():
     """Executa o timer regressivo entre os inserts."""
     print("Tempo para o próximo insert:")
-    for i in range(6, 0, -1):
+    for i in range(3, 0, -1):
         print(f"{AZUL}{i}...{RESET}", end="\r", flush=True)
         time.sleep(1)
     print(" " * 20, end="\r")
